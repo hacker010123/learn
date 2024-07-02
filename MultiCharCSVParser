@@ -1,0 +1,17 @@
+import com.opencsv.CSVParser;
+import com.opencsv.exceptions.CsvValidationException;
+
+public class MultiCharCSVParser extends CSVParser {
+
+    private final String multiCharDelimiter;
+
+    public MultiCharCSVParser(char separator, char quotechar, char escape, boolean strictQuotes, boolean ignoreLeadingWhiteSpace, String multiCharDelimiter) {
+        super(separator, quotechar, escape, strictQuotes, ignoreLeadingWhiteSpace);
+        this.multiCharDelimiter = multiCharDelimiter;
+    }
+
+    @Override
+    protected String[] parseLine(String nextLine, boolean multi) throws CsvValidationException {
+        return nextLine.split(multiCharDelimiter, -1);
+    }
+}
