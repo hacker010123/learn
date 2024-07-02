@@ -1,0 +1,39 @@
+import com.opencsv.CSVParserBuilder;
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvValidationException;
+
+import java.io.FileReader;
+import java.io.IOException;
+
+public class Main {
+
+    public static void main(String[] args) throws IOException, CsvValidationException {
+        String filename = "example.csv";
+        String multiCharDelimiter = "\\|\\|"; // Example of a multi-character delimiter
+
+        // Create a CSVParserBuilder with custom settings
+        CSVParserBuilder parserBuilder = new CSVParserBuilder();
+        parserBuilder.withSeparator(',')
+                    .withQuoteChar('"')
+                    .withEscapeChar('\\')
+                    .withIgnoreLeadingWhiteSpace(true);
+
+        // Create a custom parser instance
+        MultiCharCSVParser customParser = new MultiCharCSVParser(',', '"', '\\', false, true, multiCharDelimiter);
+
+        // Set the custom parser in the builder
+        parserBuilder.withCSVParser(customParser);
+
+        // Build CSVReader with the configured parser
+        try (CSVReader reader = new CSVReader(new FileReader(filename), parserBuilder.build())) {
+            String[] nextLine;
+            while ((nextLine = reader.readNext()) != null) {
+                // Process each line
+                for (String value : nextLine) {
+                    System.out.print(value + " ");
+                }
+                System.out.println();
+            }
+        }
+    }
+}
