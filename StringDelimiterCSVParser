@@ -6,12 +6,12 @@ public class StringDelimiterCSVParser extends CSVParser {
     private final String delimiter;
 
     public StringDelimiterCSVParser(String delimiter) {
-        super(',', '"', '\\', false, true);
+        super(); // Call the default constructor of CSVParser
         this.delimiter = delimiter;
     }
 
     @Override
     protected String[] parseLine(String nextLine, boolean multi) throws CsvValidationException {
-        return nextLine.split(delimiter, -1);
+        return nextLine.split(delimiter, -1); // Split using the custom delimiter
     }
 }
