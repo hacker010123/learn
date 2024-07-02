@@ -1,0 +1,24 @@
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvValidationException;
+
+import java.io.FileReader;
+import java.io.IOException;
+
+public class Main {
+
+    public static void main(String[] args) throws IOException, CsvValidationException {
+        String filename = "example.csv";
+        String delimiter = "\\|\\|"; // Example of a string delimiter
+
+        try (CSVReader reader = new CSVReader(new FileReader(filename), new StringDelimiterCSVParser(delimiter))) {
+            String[] nextLine;
+            while ((nextLine = reader.readNext()) != null) {
+                // Process each line
+                for (String value : nextLine) {
+                    System.out.print(value + " ");
+                }
+                System.out.println();
+            }
+        }
+    }
+}
