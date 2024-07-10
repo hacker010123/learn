@@ -1,0 +1,50 @@
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ResultSetToListList {
+
+    public static void main(String[] args) {
+        String url = "jdbc:mysql://localhost:3306/mydatabase";
+        String username = "root";
+        String password = "password";
+
+        String query = "SELECT * FROM mytable";
+
+        try (Connection connection = DriverManager.getConnection(url, username, password);
+             PreparedStatement statement = connection.prepareStatement(query)) {
+
+            ResultSet resultSet = statement.executeQuery();
+
+            // List to hold each row's data as a List<Object>
+            List<List<Object>> resultData = new ArrayList<>();
+
+            // Retrieve metadata to get column count
+            int columnCount = resultSet.getMetaData().getColumnCount();
+
+            // Iterate through the result set
+            while (resultSet.next()) {
+                // List to hold current row's data
+                List<Object> rowData = new ArrayList<>();
+                for (int i = 1; i <= columnCount; i++) {
+                    // Add each column's value to the rowData list
+                    rowData.add(resultSet.getObject(i));
+                }
+                // Add current row's data to the resultData list
+                resultData.add(rowData);
+            }
+
+            // Print the resultData list
+            for (List<Object> rowData : resultData) {
+                System.out.println(rowData);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
