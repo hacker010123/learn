@@ -1,0 +1,52 @@
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class MultipleResultSetsFromSingleQueryToListList {
+
+    public static void main(String[] args) {
+        String url = "jdbc:mysql://localhost:3306/mydatabase";
+        String username = "root";
+        String password = "password";
+
+        String query = "SELECT * FROM mytable WHERE category = ?"; // Example query with a parameter
+        List<List<ResultSet>> allResultSets = new ArrayList<>();
+
+        // Parameters to execute the query multiple times
+        String[] categories = {"category1", "category2", "category3"};
+
+        try (Connection connection = DriverManager.getConnection(url, username, password)) {
+            for (String category : categories) {
+                List<ResultSet> resultSetList = new ArrayList<>();
+
+                try (PreparedStatement statement = connection.prepareStatement(query)) {
+                    statement.setString(1, category); // Set query parameter
+                    ResultSet resultSet = statement.executeQuery();
+
+                    while (resultSet.next()) {
+                        resultSetList.add(resultSet);
+                    }
+                }
+
+                allResultSets.add(resultSetList);
+            }
+
+            // Example: Printing allResultSets
+            for (List<ResultSet> resultSetList : allResultSets) {
+                for (ResultSet resultSet : resultSetList) {
+                    while (resultSet.next()) {
+                        System.out.println("ID: " + resultSet.getInt("id") +
+                                           ", Name: " + resultSet.getString("name"));
+                    }
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
