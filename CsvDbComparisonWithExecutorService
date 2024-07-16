@@ -1,0 +1,131 @@
+import java.io.FileReader;
+import java.io.IOException;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvException;
+
+// Example POJO for result comparison
+class ComparisonResult {
+    private String csvRowId;
+    private String dbRowId;
+    private String columnName;
+    private String csvValue;
+    private String dbValue;
+
+    public ComparisonResult(String csvRowId, String dbRowId, String columnName, String csvValue, String dbValue) {
+        this.csvRowId = csvRowId;
+        this.dbRowId = dbRowId;
+        this.columnName = columnName;
+        this.csvValue = csvValue;
+        this.dbValue = dbValue;
+    }
+
+    // Getters and setters (optional for simplicity)
+    public String getCsvRowId() {
+        return csvRowId;
+    }
+
+    public String getDbRowId() {
+        return dbRowId;
+    }
+
+    public String getColumnName() {
+        return columnName;
+    }
+
+    public String getCsvValue() {
+        return csvValue;
+    }
+
+    public String getDbValue() {
+        return dbValue;
+    }
+}
+
+public class CsvDbComparisonWithExecutorService {
+
+    public static void main(String[] args) throws IOException, CsvException, SQLException, InterruptedException, ExecutionException {
+        // Configuration for PostgreSQL connection
+        String dbUrl = "jdbc:postgresql://localhost:5432/your_database";
+        String username = "your_username";
+        String password = "your_password";
+
+        // CSV file path
+        String csvFilePath = "path/to/your/csv/file.csv";
+
+        // Initialize ExecutorService with a fixed thread pool
+        ExecutorService executorService = Executors.newFixedThreadPool(5); // Adjust pool size as needed
+
+        // Initialize lists for storing comparison results and Future objects
+        List<ComparisonResult> comparisonResults = new ArrayList<>();
+        List<Future<List<ComparisonResult>>> futures = new ArrayList<>();
+
+        // Read CSV file and headers
+        try (CSVReader csvReader = new CSVReader(new FileReader(csvFilePath))) {
+            String[] csvHeaders = csvReader.readNext(); // Assuming first row contains headers
+
+            // Initialize JDBC connection
+            try (Connection conn = DriverManager.getConnection(dbUrl, username, password);
+                 Statement stmt = conn.createStatement()) {
+
+                // Query to fetch all rows from database table
+                String sql = "SELECT * FROM your_table";
+                ResultSet resultSet = stmt.executeQuery(sql);
+
+                // Iterate over CSV rows
+                String[] csvRow;
+                while ((csvRow = csvReader.readNext()) != null) {
+                    // Submit comparison task for each CSV row
+                    Callable<List<ComparisonResult>> comparisonTask = createComparisonTask(csvRow, csvHeaders, resultSet);
+                    Future<List<ComparisonResult>> future = executorService.submit(comparisonTask);
+                    futures.add(future);
+                }
+            }
+        }
+
+        // Collect results from all Future objects
+        for (Future<List<ComparisonResult>> future : futures) {
+            comparisonResults.addAll(future.get()); // Blocking call to get results from each task
+        }
+
+        // Shutdown the ExecutorService
+        executorService.shutdown();
+
+        // Process comparisonResults as needed (e.g., write to file, log, etc.)
+        for (ComparisonResult result : comparisonResults) {
+            System.out.println("CSV Row ID: " + result.getCsvRowId() +
+                    ", DB Row ID: " + result.getDbRowId() +
+                    ", Column Name: " + result.getColumnName() +
+                    ", CSV Value: " + result.getCsvValue() +
+                    ", DB Value: " + result.getDbValue());
+        }
+    }
+
+    // Method to create a Callable task for comparing CSV row with database rows
+    private static Callable<List<ComparisonResult>> createComparisonTask(String[] csvRow, String[] csvHeaders, ResultSet resultSet) {
+        return () -> {
+            List<ComparisonResult> results = new ArrayList<>();
+            String csvRowId = csvRow[0]; // Assuming first column is an identifier in CSV
+
+            // Iterate over database rows
+            while (resultSet.next()) {
+                String dbRowId = resultSet.getString("id"); // Assuming id is the unique identifier
+                for (int i = 1; i < csvRow.length; i++) {
+                    String columnName = csvHeaders[i];
+                    String csvValue = csvRow[i];
+                    String dbValue = resultSet.getString(columnName); // Retrieve value by column name
+                    // Compare values and add to results if different
+                    if (!csvValue.equals(dbValue)) {
+                        results.add(new ComparisonResult(csvRowId, dbRowId, columnName, csvValue, dbValue));
+                    }
+                }
+                resultSet.beforeFirst(); // Reset result set cursor for next iteration
+            }
+            return results;
+        };
+    }
+}
