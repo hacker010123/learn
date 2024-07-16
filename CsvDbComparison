@@ -1,0 +1,105 @@
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvException;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.*;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class CsvDbComparison {
+
+    public static void main(String[] args) throws IOException, CsvException, SQLException {
+        // Configuration for PostgreSQL connection
+        String dbUrl = "jdbc:postgresql://localhost:5432/your_database";
+        String username = "your_username";
+        String password = "your_password";
+
+        // CSV file path
+        String csvFilePath = "path/to/your/csv/file.csv";
+
+        // Output Excel file path
+        String excelFilePath = "path/to/output/differences.xlsx";
+
+        // Batch size for processing
+        int batchSize = 1000;
+
+        // Initialize JDBC connection
+        try (Connection conn = DriverManager.getConnection(dbUrl, username, password);
+             Statement stmt = conn.createStatement();
+             CSVReader csvReader = new CSVReader(new FileReader(csvFilePath))) {
+
+            // Initialize workbook and sheet for writing differences
+            Workbook workbook = new XSSFWorkbook();
+            Sheet sheet = workbook.createSheet("Differences");
+
+            // Read headers from CSV to get column names
+            String[] headers = csvReader.readNext();
+
+            // Create header row in Excel sheet
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
+
+            int rowCount = 1; // Start from second row for data
+
+            // Read CSV in batches
+            List<String[]> csvRows;
+            while ((csvRows = readCsvBatch(csvReader, batchSize)) != null) {
+                // Construct SQL query to fetch corresponding rows from database
+                List<String> csvIds = new ArrayList<>();
+                for (String[] csvRow : csvRows) {
+                    csvIds.add(csvRow[0]); // Assuming first column is an identifier in CSV
+                }
+                String sql = "SELECT * FROM your_table WHERE id IN ('" + String.join("','", csvIds) + "')";
+
+                // Execute query and process results
+                try (ResultSet rs = stmt.executeQuery(sql)) {
+                    while (rs.next()) {
+                        String databaseId = rs.getString("id");
+                        // Compare CSV rows with database rows
+                        for (String[] csvRow : csvRows) {
+                            String csvId = csvRow[0];
+                            if (csvId.equals(databaseId)) {
+                                // Compare column values
+                                for (int i = 1; i < csvRow.length; i++) {
+                                    String csvValue = csvRow[i];
+                                    String dbValue = rs.getString(headers[i]); // Assuming headers match database column names
+                                    if (!csvValue.equals(dbValue)) {
+                                        Row dataRow = sheet.createRow(rowCount++);
+                                        dataRow.createCell(0).setCellValue(csvId);
+                                        dataRow.createCell(1).setCellValue(headers[i]);
+                                        dataRow.createCell(2).setCellValue(csvValue);
+                                        dataRow.createCell(3).setCellValue(dbValue);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Write workbook to Excel file
+            try (FileOutputStream outputStream = new FileOutputStream(excelFilePath)) {
+                workbook.write(outputStream);
+            }
+
+            System.out.println("Differences written to Excel file: " + excelFilePath);
+        }
+    }
+
+    // Helper method to read CSV rows in batches
+    private static List<String[]> readCsvBatch(CSVReader csvReader, int batchSize) throws IOException, CsvException {
+        List<String[]> batch = new ArrayList<>();
+        for (int i = 0; i < batchSize; i++) {
+            String[] nextLine = csvReader.readNext();
+            if (nextLine == null) {
+                break;
+            }
+            batch.add(nextLine);
+        }
+        return batch.isEmpty() ? null : batch;
+    }
+}
