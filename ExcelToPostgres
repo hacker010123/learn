@@ -1,0 +1,84 @@
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
+public class ExcelToPostgres {
+    public static void main(String[] args) {
+        // Database connection parameters
+        String url = "jdbc:postgresql://localhost:5432/your_database";
+        String user = "your_username";
+        String password = "your_password";
+
+        // Path to the Excel file
+        String excelFilePath = "path_to_your_excel_file.xlsx";
+
+        try (FileInputStream fis = new FileInputStream(excelFilePath);
+             Workbook workbook = new XSSFWorkbook(fis);
+             Connection conn = DriverManager.getConnection(url, user, password)) {
+
+            // Read the first sheet
+            Sheet sheet = workbook.getSheetAt(0);
+
+            // Get the header row (first row with column names)
+            Row headerRow = sheet.getRow(0);
+
+            // Build the SQL Insert query dynamically based on column names
+            StringBuilder insertQuery = new StringBuilder("INSERT INTO your_table (");
+            for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+                insertQuery.append(headerRow.getCell(i).getStringCellValue()).append(", ");
+            }
+            insertQuery.setLength(insertQuery.length() - 2);  // Remove the last comma and space
+            insertQuery.append(") VALUES (");
+            for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+                insertQuery.append("?, ");
+            }
+            insertQuery.setLength(insertQuery.length() - 2);  // Remove the last comma and space
+            insertQuery.append(")");
+
+            // Prepare the statement
+            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery.toString())) {
+                // Iterate over the rows (skip the header row)
+                for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                    Row row = sheet.getRow(rowIndex);
+
+                    // Set the values for each column in the row
+                    for (int colIndex = 0; colIndex < row.getLastCellNum(); colIndex++) {
+                        switch (row.getCell(colIndex).getCellType()) {
+                            case STRING:
+                                pstmt.setString(colIndex + 1, row.getCell(colIndex).getStringCellValue());
+                                break;
+                            case NUMERIC:
+                                pstmt.setDouble(colIndex + 1, row.getCell(colIndex).getNumericCellValue());
+                                break;
+                            case BOOLEAN:
+                                pstmt.setBoolean(colIndex + 1, row.getCell(colIndex).getBooleanCellValue());
+                                break;
+                            default:
+                                pstmt.setObject(colIndex + 1, null);  // Handle other types as null
+                                break;
+                        }
+                    }
+
+                    // Execute the insert statement
+                    pstmt.executeUpdate();
+                }
+
+                System.out.println("Data inserted successfully from Excel to PostgreSQL.");
+
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+
+        } catch (IOException | SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
