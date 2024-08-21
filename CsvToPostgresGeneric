@@ -1,0 +1,142 @@
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Date;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+
+public class CsvToPostgresGeneric {
+
+    private static final String JDBC_URL = "jdbc:postgresql://localhost:5432/yourdb";
+    private static final String JDBC_USER = "yourusername";
+    private static final String JDBC_PASSWORD = "yourpassword";
+    private static final String CSV_FILE_PATH = "path/to/yourfile.csv";
+
+    public static void main(String[] args) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        BufferedReader br = null;
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); // Adjust date format if needed
+
+        try {
+            // Load the PostgreSQL JDBC driver
+            Class.forName("org.postgresql.Driver");
+
+            // Establish a connection
+            conn = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
+
+            // Open the CSV file
+            br = new BufferedReader(new FileReader(CSV_FILE_PATH));
+            String line;
+            int batchSize = 0;
+
+            // Prepare the SQL statement (dynamic column count)
+            String headerLine = br.readLine();
+            if (headerLine == null) {
+                throw new IOException("CSV file is empty");
+            }
+            String[] headers = headerLine.split(",");
+            StringBuilder sqlBuilder = new StringBuilder("INSERT INTO your_table (");
+            StringBuilder valuePlaceholders = new StringBuilder();
+            for (int i = 0; i < headers.length; i++) {
+                if (i > 0) {
+                    sqlBuilder.append(", ");
+                    valuePlaceholders.append(", ");
+                }
+                sqlBuilder.append(headers[i]);
+                valuePlaceholders.append("?");
+            }
+            sqlBuilder.append(") VALUES (").append(valuePlaceholders).append(")");
+            pstmt = conn.prepareStatement(sqlBuilder.toString());
+
+            // Read the CSV file line by line
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",");
+                
+                // Set parameters for the SQL statement
+                for (int i = 0; i < values.length; i++) {
+                    String value = values[i].trim();
+
+                    if (value.isEmpty()) {
+                        pstmt.setObject(i + 1, null); // Handle empty cells
+                    } else if (isInteger(value)) {
+                        pstmt.setInt(i + 1, Integer.parseInt(value));
+                    } else if (isDouble(value)) {
+                        pstmt.setDouble(i + 1, Double.parseDouble(value));
+                    } else if (isDate(value, dateFormat)) {
+                        pstmt.setDate(i + 1, new Date(dateFormat.parse(value).getTime()));
+                    } else {
+                        pstmt.setString(i + 1, value);
+                    }
+                }
+
+                // Add the statement to the batch
+                pstmt.addBatch();
+                batchSize++;
+
+                // Execute the batch every 1000 inserts
+                if (batchSize % 1000 == 0) {
+                    pstmt.executeBatch();
+                }
+            }
+
+            // Execute the remaining batch
+            pstmt.executeBatch();
+
+            System.out.println("Data inserted successfully.");
+
+        } catch (ClassNotFoundException e) {
+            System.err.println("PostgreSQL JDBC driver not found.");
+            e.printStackTrace();
+        } catch (SQLException e) {
+            System.err.println("SQL error: " + e.getMessage());
+            e.printStackTrace();
+        } catch (IOException e) {
+            System.err.println("File read error: " + e.getMessage());
+            e.printStackTrace();
+        } catch (ParseException e) {
+            System.err.println("Date parsing error: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            // Close resources
+            try {
+                if (br != null) br.close();
+                if (pstmt != null) pstmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException | IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static boolean isInteger(String value) {
+        try {
+            Integer.parseInt(value);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private static boolean isDouble(String value) {
+        try {
+            Double.parseDouble(value);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private static boolean isDate(String value, SimpleDateFormat dateFormat) {
+        try {
+            dateFormat.parse(value);
+            return true;
+        } catch (ParseException e) {
+            return false;
+        }
+    }
+}
