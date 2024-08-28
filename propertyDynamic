@@ -64,4 +64,23 @@ public class AppConfig {
         System.out.println("Database Password: " + dbPassword);
         System.out.println("App Environment: " + appEnv);
     }
+
+
+ // Step 2: Override properties with environment variables if they are available
+    private void overridePropertiesWithEnv() {
+        for (String key : properties.stringPropertyNames()) {
+            String propertyValue = properties.getProperty(key);
+
+            // Check if the property value contains a placeholder
+            if (propertyValue != null && propertyValue.startsWith("{?") && propertyValue.endsWith("}")) {
+                String envKey = propertyValue.substring(2, propertyValue.length() - 1); // Extract "KEY" from "{?KEY}"
+                String envValue = System.getenv(envKey); // Fetch from environment variable
+
+                if (envValue != null) {
+                    // Override property value with environment variable value
+                    properties.setProperty(key, envValue);
+                }
+            }
+        }
+    }
 }
