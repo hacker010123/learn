@@ -1,0 +1,67 @@
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+
+public class AppConfig {
+
+    private Properties properties = new Properties();
+
+    public AppConfig(String fileName) {
+        loadPropertiesFromFile(fileName); // Step 1: Load properties from file
+        replacePlaceholdersWithEnv();     // Step 2: Replace placeholders with environment variables or input
+    }
+
+    // Step 1: Load properties from the properties file
+    private void loadPropertiesFromFile(String fileName) {
+        try (InputStream input = new FileInputStream(fileName)) {
+            properties.load(input);
+        } catch (IOException ex) {
+            System.err.println("Error loading properties file: " + ex.getMessage());
+        }
+    }
+
+    // Step 2: Replace placeholders with environment variables or prompt the user
+    private void replacePlaceholdersWithEnv() {
+        for (String key : properties.stringPropertyNames()) {
+            String value = properties.getProperty(key);
+
+            // Check if the value has a placeholder format "{?KEY}"
+            if (value != null && value.startsWith("{?") && value.endsWith("}")) {
+                String envKey = value.substring(2, value.length() - 1); // Extract "KEY" from "{?KEY}"
+                String envValue = System.getenv(envKey); // Fetch from environment variable
+
+                // If the environment variable is not set, prompt the user for input
+                if (envValue == null) {
+                    System.out.println("Enter value for " + envKey + ": ");
+                    envValue = new java.util.Scanner(System.in).nextLine();
+                }
+
+                // Set the resolved value into properties
+                properties.setProperty(key, envValue);
+            }
+        }
+    }
+
+    // Method to get a property value
+    public String getProperty(String key) {
+        return properties.getProperty(key);
+    }
+
+    public static void main(String[] args) {
+        // Specify the properties file to load
+        AppConfig config = new AppConfig("config.properties");
+
+        // Retrieve properties
+        String dbUrl = config.getProperty("database.url");
+        String dbUser = config.getProperty("database.user");
+        String dbPassword = config.getProperty("database.password");
+        String appEnv = config.getProperty("app.env");
+
+        // Print the property values
+        System.out.println("Database URL: " + dbUrl);
+        System.out.println("Database User: " + dbUser);
+        System.out.println("Database Password: " + dbPassword);
+        System.out.println("App Environment: " + appEnv);
+    }
+}
