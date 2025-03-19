@@ -1,0 +1,18 @@
+import com.opencsv.CSVReader;
+
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.List;
+
+public class CSVLoader {
+    public static List<String[]> loadCSV(String filePath) throws Exception {
+        List<String[]> csvData = new ArrayList<>();
+        try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+            String[] nextLine;
+            while ((nextLine = reader.readNext()) != null) {
+                csvData.add(nextLine);
+            }
+        }
+        return csvData;
+    }
+}
