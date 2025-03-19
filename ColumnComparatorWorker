@@ -1,0 +1,44 @@
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.List;
+import java.util.concurrent.Callable;
+
+public class ColumnComparatorWorker implements Callable<Boolean> {
+    private List<String[]> csvData;
+    private int columnIndex;
+    private Connection dbConnection;
+
+    public ColumnComparatorWorker(List<String[]> csvData, int columnIndex, Connection dbConnection) {
+        this.csvData = csvData;
+        this.columnIndex = columnIndex;
+        this.dbConnection = dbConnection;
+    }
+
+    @Override
+    public Boolean call() {
+        try {
+            String query = "SELECT your_column_name FROM your_table"; // Modify query to fetch the specific column
+            try (PreparedStatement pstmt = dbConnection.prepareStatement(query);
+                 ResultSet resultSet = pstmt.executeQuery()) {
+
+                int rowIndex = 0;
+                while (resultSet.next() && rowIndex < csvData.size()) {
+                    String csvValue = csvData.get(rowIndex)[columnIndex];
+                    String dbValue = resultSet.getString(1); // Get the first (and only) column from result set
+
+                    if (!csvValue.equals(dbValue)) {
+                        System.out.println("Mismatch at row " + rowIndex + ", column " + columnIndex +
+                                ": CSV[" + csvValue + "] != DB[" + dbValue + "]");
+                        // Handle the mismatch (e.g., log, store, etc.)
+                    }
+                    rowIndex++;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+}
